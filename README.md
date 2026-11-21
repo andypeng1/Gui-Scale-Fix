@@ -1,8 +1,12 @@
 # GUI Scale Fix (Minecraft 1.12.2 / Forge)
 
+<p align="center">
+  <img src="icon.png" width="128" alt="GUI Scale Fix icon">
+</p>
+
 修复原版界面尺寸（GUI Scale）在非标准分辨率下“调到某些档位却没有效果”的问题，并把该选项改成滑块。
 
-**下载：** [最新 Release](https://github.com/andypeng1/Gui-Scale-Fix/releases/latest) — 将 `GuiScaleFix-1.12.2-1.0.1.jar` 放入 `mods/` 目录即可。
+**下载：** [最新 Release](https://github.com/andypeng1/Gui-Scale-Fix/releases/latest) — 将 `GuiScaleFix-1.12.2-1.0.2.jar` 放入 `mods/` 目录即可。
 
 ## 问题根因
 
@@ -48,8 +52,8 @@
 
 产物：
 
-- `build/libs/GuiScaleFix-1.12.2-1.0.1.jar` —— 可放入 `mods/` 的生产 jar（已 reobf 到 SRG）。
-- `build/libs/GuiScaleFix-1.12.2-1.0.1-dev.jar` —— 开发环境 jar，无需使用。
+- `build/libs/GuiScaleFix-1.12.2-1.0.2.jar` —— 可放入 `mods/` 的生产 jar（已 reobf 到 SRG）。
+- `build/libs/GuiScaleFix-1.12.2-1.0.2-dev.jar` —— 开发环境 jar，无需使用。
 
 在开发环境启动：
 
