@@ -2,6 +2,8 @@
 
 修复原版界面尺寸（GUI Scale）在非标准分辨率下“调到某些档位却没有效果”的问题，并把该选项改成滑块。
 
+**下载：** [最新 Release](https://github.com/andypeng1/Gui-Scale-Fix/releases/latest) — 将 `GuiScaleFix-1.12.2-1.0.0.jar` 放入 `mods/` 目录即可。
+
 ## 问题根因
 
 1. `ScaledResolution` 在计算缩放时要求虚拟分辨率不小于 **320x240**：
