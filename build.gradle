@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.andypeng.guiscalefix'
-version = '1.0.0'
+version = '1.0.1'
 
 base {
     archivesName = 'GuiScaleFix-1.12.2'
@@ -23,8 +23,14 @@ tasks.withType(JavaCompile).configureEach {
 minecraft {
     mcVersion = '1.12.2'
     username = 'Developer'
-    // In a dev workspace the jar manifest is not read, so register the coremod explicitly.
-    extraRunJvmArguments.add('-Dfml.coreMods.load=com.andypeng.guiscalefix.core.GuiScaleFixCorePlugin')
+}
+
+// In a dev workspace the jar manifest is not read, so register the coremod explicitly.
+// Do this only for the deobfuscated dev client — the obfuscated client discovers it from
+// the jar manifest, and passing the flag there would attempt (and fail) to load the
+// coremod before the mod jar is added to the classpath.
+tasks.named('runClient').configure {
+    extraJvmArgs.add('-Dfml.coreMods.load=com.andypeng.guiscalefix.core.GuiScaleFixCorePlugin')
 }
 
 dependencies {

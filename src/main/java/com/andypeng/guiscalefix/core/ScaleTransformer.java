@@ -9,22 +9,21 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
-import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Replaces the body of {@code ScaledResolution(Minecraft)} with a call to
  * {@link ScaleHooks#compute(net.minecraft.client.Minecraft)} and a few field stores.
  * <p>
- * Fields are located by descriptor/declaration order instead of name, so the patch works
- * both in the development workspace (MCP names) and in production (SRG names).
+ * The transformer runs before Forge's deobfuscation transformer, so in production the
+ * bytecode contains notch names ({@code bit}, {@code bib}, methods {@code a..e}) while in
+ * the development workspace it contains MCP names. Fields are therefore located through
+ * the getter methods' {@code GETFIELD} instructions (accepting MCP, SRG and notch names)
+ * instead of relying on field names or declaration order.
  */
 public class ScaleTransformer implements IClassTransformer {
 
@@ -33,9 +32,15 @@ public class ScaleTransformer implements IClassTransformer {
     private static final String TARGET = "net.minecraft.client.gui.ScaledResolution";
     // Notch name of ScaledResolution in 1.12.2; only needed if no deobf name is supplied.
     private static final String TARGET_OBF = "bit";
-    private static final String CTOR_DESC = "(Lnet/minecraft/client/Minecraft;)V";
     private static final String HOOKS = "com/andypeng/guiscalefix/core/ScaleHooks";
     private static final String HOOKS_DESC = "(Lnet/minecraft/client/Minecraft;)[D";
+
+    // Getter names in MCP (dev), SRG and notch (production) form.
+    private static final String[] WIDTH_I = {"getScaledWidth", "func_78326_a", "a"};
+    private static final String[] HEIGHT_I = {"getScaledHeight", "func_78328_b", "b"};
+    private static final String[] WIDTH_D = {"getScaledWidth_double", "func_78327_c", "c"};
+    private static final String[] HEIGHT_D = {"getScaledHeight_double", "func_78324_d", "d"};
+    private static final String[] SCALE_I = {"getScaleFactor", "func_78325_e", "e"};
 
     @Override
     public byte[] transform(String name, String transformedName, byte[] basicClass) {
@@ -50,60 +55,45 @@ public class ScaleTransformer implements IClassTransformer {
 
         try {
             byte[] patched = patch(basicClass);
-            LOGGER.info("Patched ScaledResolution GUI scale calculation");
-            return patched;
+            if (patched != null) {
+                LOGGER.info("Patched ScaledResolution GUI scale calculation");
+                return patched;
+            }
         } catch (Throwable t) {
             // Never break the game because of this mod.
             LOGGER.error("Failed to patch ScaledResolution, falling back to vanilla scaling", t);
-            return basicClass;
         }
+        return basicClass;
     }
 
+    /**
+     * @return patched class bytes, or {@code null} if the class did not have the expected shape
+     */
     private static byte[] patch(byte[] basicClass) {
         ClassNode classNode = new ClassNode();
         new ClassReader(basicClass).accept(classNode, 0);
 
-        MethodNode ctor = null;
-        for (MethodNode method : classNode.methods) {
-            if ("<init>".equals(method.name) && CTOR_DESC.equals(method.desc)) {
-                ctor = method;
-                break;
-            }
-        }
+        MethodNode ctor = findConstructor(classNode);
         if (ctor == null) {
-            LOGGER.warn("ScaledResolution constructor not found, skipping patch");
-            return basicClass;
+            LOGGER.warn("ScaledResolution constructor not found in {}", classNode.name);
+            return null;
         }
 
-        // Vanilla layout (declaration order):
-        //   private final double scaledWidthD, scaledHeightD;
-        //   private int scaledWidth, scaledHeight, scaleFactor;
-        List<FieldNode> doubles = new ArrayList<>(2);
-        List<FieldNode> ints = new ArrayList<>(3);
-        for (FieldNode field : classNode.fields) {
-            if ((field.access & Opcodes.ACC_STATIC) != 0) {
-                continue;
-            }
-            if ("D".equals(field.desc)) {
-                doubles.add(field);
-            } else if ("I".equals(field.desc)) {
-                ints.add(field);
-            }
+        FieldInsnNode scaledWidth = findFieldReturnedBy(classNode, "()I", WIDTH_I);
+        FieldInsnNode scaledHeight = findFieldReturnedBy(classNode, "()I", HEIGHT_I);
+        FieldInsnNode scaledWidthD = findFieldReturnedBy(classNode, "()D", WIDTH_D);
+        FieldInsnNode scaledHeightD = findFieldReturnedBy(classNode, "()D", HEIGHT_D);
+        FieldInsnNode scaleFactor = findFieldReturnedBy(classNode, "()I", SCALE_I);
+
+        if (scaledWidth == null || scaledHeight == null || scaledWidthD == null
+                || scaledHeightD == null || scaleFactor == null) {
+            LOGGER.warn("Could not locate ScaledResolution fields in {} (width={}, height={}, widthD={}, heightD={}, scale={})",
+                    classNode.name, scaledWidth != null, scaledHeight != null,
+                    scaledWidthD != null, scaledHeightD != null, scaleFactor != null);
+            return null;
         }
 
-        if (doubles.size() != 2 || ints.size() != 3) {
-            LOGGER.warn("Unexpected ScaledResolution layout ({} doubles, {} ints), skipping patch",
-                    doubles.size(), ints.size());
-            return basicClass;
-        }
-
-        FieldNode scaledWidthD = doubles.get(0);
-        FieldNode scaledHeightD = doubles.get(1);
-        FieldNode scaledWidth = ints.get(0);
-        FieldNode scaledHeight = ints.get(1);
-        FieldNode scaleFactor = ints.get(2);
-
-        InsnList body = buildBody(classNode.name, scaledWidthD, scaledHeightD, scaledWidth, scaledHeight, scaleFactor);
+        InsnList body = buildBody(classNode.name, scaledWidth, scaledHeight, scaledWidthD, scaledHeightD, scaleFactor);
 
         ctor.instructions.clear();
         ctor.tryCatchBlocks.clear();
@@ -117,8 +107,50 @@ public class ScaleTransformer implements IClassTransformer {
         return writer.toByteArray();
     }
 
-    private static InsnList buildBody(String owner, FieldNode scaledWidthD, FieldNode scaledHeightD,
-                                      FieldNode scaledWidth, FieldNode scaledHeight, FieldNode scaleFactor) {
+    private static MethodNode findConstructor(ClassNode classNode) {
+        MethodNode found = null;
+        for (MethodNode method : classNode.methods) {
+            if (!"<init>".equals(method.name) || "()V".equals(method.desc) || !method.desc.endsWith(")V")) {
+                continue;
+            }
+            if (found != null) {
+                // Unexpected overload; refuse to guess.
+                return null;
+            }
+            found = method;
+        }
+        return found;
+    }
+
+    private static FieldInsnNode findFieldReturnedBy(ClassNode classNode, String desc, String[] methodNames) {
+        for (MethodNode method : classNode.methods) {
+            if (!desc.equals(method.desc) || !matchesAny(method.name, methodNames)) {
+                continue;
+            }
+            for (AbstractInsnNode insn : method.instructions.toArray()) {
+                if (insn.getOpcode() == Opcodes.GETFIELD) {
+                    FieldInsnNode field = (FieldInsnNode) insn;
+                    if (classNode.name.equals(field.owner)) {
+                        return field;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean matchesAny(String value, String[] candidates) {
+        for (String candidate : candidates) {
+            if (candidate.equals(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static InsnList buildBody(String owner, FieldInsnNode scaledWidth, FieldInsnNode scaledHeight,
+                                      FieldInsnNode scaledWidthD, FieldInsnNode scaledHeightD,
+                                      FieldInsnNode scaleFactor) {
         InsnList il = new InsnList();
 
         // super()
@@ -140,7 +172,7 @@ public class ScaleTransformer implements IClassTransformer {
         return il;
     }
 
-    private static void storeDouble(InsnList il, String owner, FieldNode field, int arrayIndex) {
+    private static void storeDouble(InsnList il, String owner, FieldInsnNode field, int arrayIndex) {
         il.add(new VarInsnNode(Opcodes.ALOAD, 0));
         il.add(new VarInsnNode(Opcodes.ALOAD, 2));
         il.add(intConstant(arrayIndex));
@@ -148,7 +180,7 @@ public class ScaleTransformer implements IClassTransformer {
         il.add(new FieldInsnNode(Opcodes.PUTFIELD, owner, field.name, field.desc));
     }
 
-    private static void storeInt(InsnList il, String owner, FieldNode field, int arrayIndex) {
+    private static void storeInt(InsnList il, String owner, FieldInsnNode field, int arrayIndex) {
         il.add(new VarInsnNode(Opcodes.ALOAD, 0));
         il.add(new VarInsnNode(Opcodes.ALOAD, 2));
         il.add(intConstant(arrayIndex));

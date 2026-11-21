@@ -3,7 +3,7 @@
     "modid": "guiscalefix",
     "name": "GUI Scale Fix",
     "description": "Honours every GUI scale value on non-standard resolutions (removes the vanilla 320x240 clamp and the Unicode odd-scale rounding), and turns the GUI Scale option into a slider.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "mcversion": "1.12.2",
     "authorList": [
       "andypeng1"
