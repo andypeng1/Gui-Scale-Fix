@@ -1,0 +1,9 @@
+.gradle/
+build/
+run/
+runclient.log
+.idea/
+*.iml
+out/
+
+*.log

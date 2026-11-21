@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+    id 'com.gtnewhorizons.retrofuturagradle' version '2.0.0'
+}
+
+group = 'com.andypeng.guiscalefix'
+version = '1.0.0'
+
+base {
+    archivesName = 'GuiScaleFix-1.12.2'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+minecraft {
+    mcVersion = '1.12.2'
+    username = 'Developer'
+    // In a dev workspace the jar manifest is not read, so register the coremod explicitly.
+    extraRunJvmArguments.add('-Dfml.coreMods.load=com.andypeng.guiscalefix.core.GuiScaleFixCorePlugin')
+}
+
+dependencies {
+    // Provided by Forge at runtime (asm-debug-all 5.2 ships with Forge 1.12.2).
+    compileOnly 'org.ow2.asm:asm-debug-all:5.2'
+}
+
+def coreManifest = [
+        'FMLCorePlugin'              : 'com.andypeng.guiscalefix.core.GuiScaleFixCorePlugin',
+        'FMLCorePluginContainsFMLMod': 'true',
+        'ForceLoadAsMod'             : 'true'
+]
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes(coreManifest)
+    }
+}
+
+tasks.withType(com.gtnewhorizons.retrofuturagradle.mcp.ReobfuscatedJar).configureEach {
+    manifest {
+        attributes(coreManifest)
+    }
+}
+
+// Make `build` produce the production (SRG-reobfuscated) jar.
+tasks.named('assemble').configure {
+    dependsOn(tasks.named('reobfJar'))
+}
