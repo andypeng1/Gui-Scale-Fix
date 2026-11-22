@@ -68,3 +68,7 @@
 - Minecraft 1.12.2
 - Forge 14.23.5.2847+（编译基线 2847，`mcmod.info` 声明 `forge@[14.23.5.2847,)`；在 14.23.5.2864 上正常工作）
 - 仅客户端
+
+## License / 许可证
+
+MIT © 2026 andypeng1 — 见 [LICENSE](LICENSE)。
